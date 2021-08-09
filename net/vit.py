@@ -1,4 +1,5 @@
 import tensorflow as tf
+import resnet
 
 
 class Add_Position_Embs(tf.keras.layers.Layer):
@@ -219,10 +220,16 @@ class VIT(tf.keras.Model):
         self.resnet = resnet
         self.representation_size = representation_size
         self.classifier = classifier
+    
+    def get(self, name, ctor, *args, **kwargs):
+        # Create or get layer by name to avoid mentioning it in the constructor.
+        if not hasattr(self, "_modules"):
+            self._modules = {}
+        if name not in self._modules:
+            self._modules[name] = ctor(*args, **kwargs)
+        return self._modules[name]
 
 
-
- 
     def call(self, inputs, train):
 
         x = inputs
@@ -231,7 +238,9 @@ class VIT(tf.keras.Model):
             width = int(64 * self.resnet.width_factor)
 
             # Root block.
-            x = models_resnet.StdConv(
+            x = self.get("conv_root",Std_Conv, self.features*4, (1,1),self.strides, 
+                padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(residual)
+            x = resnet.StdConv(
                 features=width,
                 kernel_size=(7, 7),
                 strides=(2, 2),

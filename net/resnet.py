@@ -57,24 +57,24 @@ class Residual_Unit(tf.keras.Model):
         if needs_projection:
             residual = self.get("conv_proj",Std_Conv, self.features*4, (1,1),self.strides, 
                 padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(residual)
-            residual = self.get(tfa.layers.GroupNormalization, name='gn_proj', epsilon = 1e-6)(residual)
+            residual = self.get('gn_proj', tfa.layers.GroupNormalization, epsilon = 1e-6)(residual)
 
         y = self.get("conv1",Std_Conv, self.features, (1,1), 
                 padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
             
-        y = self.get(tfa.layers.GroupNormalization, name='gn1', epsilon = 1e-6)(y)
+        y = self.get("gn1", tfa.layers.GroupNormalization, epsilon = 1e-6)(y)
         y = tf.keras.layers.ReLU()(y)
 
         y = self.get("conv2",Std_Conv, self.features, (3,3),self.strides, 
             padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
         
-        y = self.get(tfa.layers.GroupNormalization, name='gn2', epsilon = 1e-6)(y)
+        y = self.get('gn2', tfa.layers.GroupNormalization, epsilon = 1e-6)(y)
         y = tf.keras.layers.ReLU()(y)
 
-        y = self.get("conv3",Std_Conv, self.features*4, (1,1), 
+        y = self.get("conv3", Std_Conv, self.features*4, (1,1), 
             padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
 
-        y = self.get(tfa.layers.GroupNormalization, name='gn3', epsilon = 1e-6, gamma_initializer= tf.keras.initializers.Zeros())(y)
+        y = self.get('gn3', tfa.layers.GroupNormalization, epsilon = 1e-6, gamma_initializer= tf.keras.initializers.Zeros())(y)
         y = tf.keras.layers.ReLU()(residual + y)
         return y
 
@@ -97,17 +97,63 @@ class Res_Net_Stage(tf.keras.Model):
         return self._modules[name]
 
     
-    def __call__(self, x):
-        x = self.get(Residual_Unit, self.nout, strides=self.first_stride, name='unit1')(x)
+    def call(self, x):
+        x = self.get('unit1', Residual_Unit, self.nout, strides=self.first_stride)(x)
         for i in range(1, self.block_size):
-            x = self.get(Residual_Unit, self.nout, strides=(1, 1), name=f'unit{i + 1}')(x)
+            x = self.get(f'unit{i + 1}', Residual_Unit, self.nout, strides=(1, 1))(x)
         return x
+
+class Test_Res_Net_Stage(tf.keras.Model):
+    def __init__(self, block_size, nout, first_stride, name=None):
+        super(Test_Res_Net_Stage, self).__init__(name)
+        self.stage1 = Res_Net_Stage(
+            block_size=block_size,
+            nout=nout,
+            first_stride=first_stride,
+            name='block1')
+        self.d1 = tf.keras.layers.Dense(1)
+    
+    def call(self, input):
+        x = self.stage1(input)
+        x = tf.keras.layers.Flatten()(x)
+        x = self.d1(x)
+        return x 
+
+
+    
 
         
     
 
 if __name__ == "__main__":
-    conv1 = Std_Conv(1,2,1)
-    a = tf.ones([5,256,256,3])
-    b = conv1(a)
-    b = conv1(a) # check if the kernel modify twice 
+    '''
+    test std_conv    
+    '''
+    # conv1 = Std_Conv(1,2,1)
+    # a = tf.ones([5,256,256,3])
+    # b = conv1(a)
+    # b = conv1(a) # check if the kernel modify twice 
+    '''
+    test res stage
+    '''
+    x =  tf.ones([1,256,256,64])
+    y =  tf.ones([1])
+    stage1 = Test_Res_Net_Stage(
+                    block_size=5,
+                    nout=64,
+                    first_stride=(1, 1),
+                    name='block1')
+
+    stage1(x)
+    
+    stage1.compile(optimizer="Adam", loss="mse")
+    
+    stage1.fit(x,y,1,1)
+    print(stage1.summary())
+    import pdb
+    pdb.set_trace()
+    '''
+    the use "stage1.get_layer(index = 0).get_layer(index = 0).summary()" to check model. looks fine.
+    
+    '''
+
