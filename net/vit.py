@@ -32,7 +32,7 @@ class Add_Position_Embs(tf.keras.layers.Layer):
     """
     return inputs + self.pe
 
-class Mlp_Block(tf.keras.layers.Layer):
+class Mlp_Block(tf.keras.Model):
     """Transformer MLP / feed-forward block."""
 
     # mlp_dim: int
@@ -72,7 +72,7 @@ class Mlp_Block(tf.keras.layers.Layer):
         output = self.drop2(output, not deterministic)
         return output
 
-class Encoder_1D_Block(tf.keras.layers.Layer):
+class Encoder_1D_Block(tf.keras.Model):
     """Transformer encoder layer.
 
     Attributes:
@@ -127,9 +127,9 @@ class Encoder_1D_Block(tf.keras.layers.Layer):
         assert tf.rank(inputs).numpy() == 3, f'Expected (batch, seq, hidden) got {inputs.shape}'
         x = self.ln1(inputs)
         if not deterministic:
-            x = self.get(tf.keras.layers.MultiHeadAttention(self.num_heads,x.shape[-1],x.shape[-1],dropout = self.attention_dropout_rate,use_bias=False))(x)
+            x = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)(x)
         else:
-            attn1 = self.get(tf.keras.layers.MultiHeadAttention(self.num_heads,x.shape[-1],x.shape[-1],dropout = self.attention_dropout_rate,use_bias=False))
+            attn1 = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)
             x = attn1(x,training = False)
         x = self.drop1(x, not deterministic)
         x = x + inputs
@@ -140,7 +140,7 @@ class Encoder_1D_Block(tf.keras.layers.Layer):
 
         return x + y
 
-class Encoder(tf.keras.layers.Layer):
+class Encoder(tf.keras.Model):
     """Transformer Model Encoder for sequence to sequence translation.
 
     Attributes:
