@@ -1,0 +1,7 @@
+
+*.tfrecords
+__pycache__
+tf_log
+*.json
+model
+

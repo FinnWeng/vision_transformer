@@ -1,5 +1,7 @@
 import tensorflow as tf
-import resnet
+import tensorflow_addons as tfa
+
+import net.resnet as resnet_layer
 
 
 class Add_Position_Embs(tf.keras.layers.Layer):
@@ -9,8 +11,8 @@ class Add_Position_Embs(tf.keras.layers.Layer):
     posemb_init: positional embedding initializer.
   """
 
-  def __init__(self, input_shape):
-    super(Add_Position_Embs, self).__init__()
+  def __init__(self, input_shape, name = None):
+    super(Add_Position_Embs, self).__init__(name)
     # inputs.shape is (batch_size, seq_len, emb_dim).
     assert len(input_shape) == 3, "tensor must rank 3"
     pos_emb_shape = (1, input_shape[1], input_shape[2])
@@ -45,8 +47,8 @@ class Mlp_Block(tf.keras.Model):
     # bias_init: Callable[[PRNGKey, Shape, Dtype],
     #                     Array] = nn.initializers.normal(stddev=1e-6)
     
-    def __init__(self, mlp_dim,out_dim = None,dropout_rate = 0.1):
-        super(Mlp_Block, self).__init__()
+    def __init__(self, mlp_dim,out_dim = None,dropout_rate = 0.1, name = None):
+        super(Mlp_Block, self).__init__(name)
         # actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
         self.mlp_dim = mlp_dim
         self.out_dim = out_dim
@@ -65,7 +67,7 @@ class Mlp_Block(tf.keras.Model):
             self.d2 = tf.keras.layers.Dense(inputs.shape[-1],bias_initializer=tf.keras.initializers.RandomNormal(stddev=1e-6))
 
         x = self.d1(inputs)
-        x = tf.keras.activations.gelu(x,approxiamate = True)
+        x = tf.keras.activations.gelu(x,approximate = True)
 
         x = self.drop1(x, not deterministic)
         output = self.d2(x)
@@ -128,10 +130,10 @@ class Encoder_1D_Block(tf.keras.Model):
         assert tf.rank(inputs).numpy() == 3, f'Expected (batch, seq, hidden) got {inputs.shape}'
         x = self.ln1(inputs)
         if not deterministic:
-            x = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)(x)
+            x = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)(x, x, x)
         else:
             attn1 = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)
-            x = attn1(x,training = False)
+            x = attn1(x, x, x,training = False)
         x = self.drop1(x, not deterministic)
         x = x + inputs
 
@@ -158,16 +160,15 @@ class Encoder(tf.keras.Model):
     # dropout_rate: float = 0.1
     # attention_dropout_rate: float = 0.1
 
-    def __init__(self, num_layers, mlp_dim,num_heads, input_shape,dropout_rate = 0.1, attention_dropout_rate = 0.1):
-        super(Encoder_1D_Block, self).__init__()
+    def __init__(self, num_layers, mlp_dim,num_heads, dropout_rate = 0.1, attention_dropout_rate = 0.1, name = None):
+        super(Encoder, self).__init__(name)
         self.num_layers = num_layers
         self.mlp_dim = mlp_dim
         self.num_heads = num_heads
-        self.input_shape = input_shape
         self.dropout_rate = dropout_rate
         self.attention_dropout_rate = attention_dropout_rate
 
-        self.add_pe = Add_Position_Embs(self.input_shape)
+        # self.add_pe = Add_Position_Embs(self.input_shape)
         self.drop1 = tf.keras.layers.Dropout(self.dropout_rate)
 
         self.e_1d_blocks = [Encoder_1D_Block(mlp_dim=self.mlp_dim, 
@@ -175,8 +176,14 @@ class Encoder(tf.keras.Model):
                     attention_dropout_rate=self.attention_dropout_rate,name = f'encoderblock_{lyr}',
                     ) for lyr in range(self.num_layers) ]
         self.ln1 = tf.keras.layers.LayerNormalization(axis = [1,2],epsilon=1e-06,) # axis igonores 0, and we make sure the rank is 3.
-
-
+    
+    def get(self, name, ctor, *args, **kwargs):
+        # Create or get layer by name to avoid mentioning it in the constructor.
+        if not hasattr(self, "_modules"):
+            self._modules = {}
+        if name not in self._modules:
+            self._modules[name] = ctor(*args, **kwargs)
+        return self._modules[name]
 
 
     def call(self, inputs, train):
@@ -191,7 +198,8 @@ class Encoder(tf.keras.Model):
         """
         assert tf.rank(inputs).numpy() == 3  # (batch, len, emb)
 
-        x = self.add_pe(inputs)
+        # x = self.add_pe(inputs)
+        x = self.get("add_pe", Add_Position_Embs, inputs.shape)(inputs)
         x = self.drop1(x, train)
 
         # Input Encoder
@@ -201,25 +209,33 @@ class Encoder(tf.keras.Model):
 
         return encoded
 
-class VIT(tf.keras.Model):
+class ViT(tf.keras.Model):
     """VisionTransformer."""
 
     # `num_classes: int
     # patches: Any
     # patches: Any
+    # transformer: Any
     # hidden_size: int
     # resnet: Optional[Any] = None
     # representation_size: Optional[int] = None
     # classifier: str = 'token'
 
-    def __init__(self, num_classes, patches,  hidden_size,resnet, representation_size, classifier = token, name = "VIT"):
-        super(Encoder_1D_Block, self).__init__(name = name)
+    def __init__(self, num_classes, patches, transformer, hidden_size, resnet = None, representation_size = None, classifier = "token", name = "VIT"):
+        super(ViT, self).__init__(name = name)
         self.num_classes = num_classes
         self.patches = patches
+        self.transformer = transformer
         self.hidden_size =  hidden_size
         self.resnet = resnet
         self.representation_size = representation_size
         self.classifier = classifier
+
+        cls_init = tf.keras.initializers.Zeros()(
+            shape=[1,1,self.hidden_size]
+        )
+
+        self.cls = tf.Variable(cls_init,trainable = True,name = "cls")
     
     def get(self, name, ctor, *args, **kwargs):
         # Create or get layer by name to avoid mentioning it in the constructor.
@@ -238,77 +254,71 @@ class VIT(tf.keras.Model):
             width = int(64 * self.resnet.width_factor)
 
             # Root block.
-            x = self.get("conv_root",Std_Conv, self.features*4, (1,1),self.strides, 
-                padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(residual)
-            x = resnet.StdConv(
-                features=width,
-                kernel_size=(7, 7),
-                strides=(2, 2),
-                use_bias=False,
-                name='conv_root')(
-                    x)
-            x = nn.GroupNorm(name='gn_root')(x)
-            x = nn.relu(x)
-            x = nn.max_pool(x, window_shape=(3, 3), strides=(2, 2), padding='SAME')
+            x = self.get("conv_root",resnet_layer.Std_Conv, self.features, (7,7), (2,2), 
+                padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
+
+            x = self.get('gn_root', tfa.layers.GroupNormalization, epsilon = 1e-6)(x)
+            x = tf.nn.relu(x)
+
+            
+            x = tf.nn.max_pool2d(x, pool_size=(3, 3),strides=(2, 2), padding='same')
+
 
             # ResNet stages.
             if self.resnet.num_layers:
-                x = models_resnet.ResNetStage(
+                x = resnet_layer.Res_Net_Stage(
                     block_size=self.resnet.num_layers[0],
                     nout=width,
                     first_stride=(1, 1),
                     name='block1')(
                         x)
                 for i, block_size in enumerate(self.resnet.num_layers[1:], 1):
-                x = models_resnet.ResNetStage(
-                    block_size=block_size,
-                    nout=width * 2**i,
-                    first_stride=(2, 2),
-                    name=f'block{i + 1}')(
-                        x)
+                    x = resnet_layer.Res_Net_Stage(
+                        block_size=block_size,
+                        nout=width * 2**i,
+                        first_stride=(2, 2),
+                        name=f'block{i + 1}')(
+                            x)
 
         n, h, w, c = x.shape
 
+        '''
+        get patch here!!!
+        '''
         # We can merge s2d+emb into a single conv; it's the same.
-        x = nn.Conv(
-            features=self.hidden_size,
-            kernel_size=self.patches.size,
-            strides=self.patches.size,
-            padding='VALID',
-            name='embedding')(
-                x)
+        x = self.get("embedding",tf.keras.layers.Conv2D, self.hidden_size, self.patches.size, self.patches.size, 
+                padding = "valid",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
 
         # Here, x is a grid of embeddings.
 
         # Transformer.
         n, h, w, c = x.shape
-        x = jnp.reshape(x, [n, h * w, c])
+        x = tf.reshape(x, [n, h * w, c])
 
         # If we want to add a class token, add it here.
         if self.classifier == 'token':
-        cls = self.param('cls', nn.initializers.zeros, (1, 1, c))
-        cls = jnp.tile(cls, [n, 1, 1])
-        x = jnp.concatenate([cls, x], axis=1)
+            cls = self.cls
+            cls = tf.tile(cls,[n, 1, 1])
+            x = tf.concat([cls, x], axis=1)
 
         x = Encoder(name='Transformer', **self.transformer)(x, train=train)
-
+        
         if self.classifier == 'token':
-        x = x[:, 0]
+            x = x[:, 0]
         elif self.classifier == 'gap':
-        x = jnp.mean(x, axis=list(range(1, x.ndim - 1)))  # (1,) or (1,2)
+            x = tf.reduce_mean.mean(x, axis=list(range(1, x.ndim - 1)))  # (1,) or (1,2)
         else:
-        raise ValueError(f'Invalid classifier={self.classifier}')
+            raise ValueError(f'Invalid classifier={self.classifier}')
 
         if self.representation_size is not None:
-        x = nn.Dense(features=self.representation_size, name='pre_logits')(x)
-        x = nn.tanh(x)
-        else:
-        x = IdentityLayer(name='pre_logits')(x)
+            x = self.get("pre_logits",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                activation = "tanh")(x)
+        # else:
+        #     x = IdentityLayer(name='pre_logits')(x)
 
-        x = nn.Dense(
-            features=self.num_classes,
-            name='head',
-            kernel_init=nn.initializers.zeros)(
-                x)
+        x = self.get("head",tf.keras.layers.Dense, 
+            self.num_classes, kernel_initializer=tf.keras.initializers.LecunNormal())(x) 
+        # the original implementation says using -10 for bias init(says in issue), which scale is too large in my view.
         return x
-        `
+        

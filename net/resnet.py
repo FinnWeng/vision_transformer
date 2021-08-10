@@ -39,6 +39,7 @@ class Residual_Unit(tf.keras.Model):
 
         self.features = features
         self.strides = strides
+
     
     def get(self, name, ctor, *args, **kwargs):
         # Create or get layer by name to avoid mentioning it in the constructor.
@@ -63,19 +64,19 @@ class Residual_Unit(tf.keras.Model):
                 padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
             
         y = self.get("gn1", tfa.layers.GroupNormalization, epsilon = 1e-6)(y)
-        y = tf.keras.layers.ReLU()(y)
+        y = tf.nn.relu(y)
 
         y = self.get("conv2",Std_Conv, self.features, (3,3),self.strides, 
             padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
         
         y = self.get('gn2', tfa.layers.GroupNormalization, epsilon = 1e-6)(y)
-        y = tf.keras.layers.ReLU()(y)
+        y = tf.nn.relu(y)
 
         y = self.get("conv3", Std_Conv, self.features*4, (1,1), 
             padding = "same",use_bias = False, kernel_initializer = tf.keras.initializers.LecunNormal())(x)
 
         y = self.get('gn3', tfa.layers.GroupNormalization, epsilon = 1e-6, gamma_initializer= tf.keras.initializers.Zeros())(y)
-        y = tf.keras.layers.ReLU()(residual + y)
+        y = tf.nn.relu(residual + y)
         return y
 
 

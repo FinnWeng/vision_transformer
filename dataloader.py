@@ -252,18 +252,22 @@ def get_data(
     data = data.map(_pp, tf.data.experimental.AUTOTUNE)
     data = data.batch(batch_size, drop_remainder=True)
 
-    # Shard data such that it can be distributed accross devices
-    num_devices = 1
+    '''
+    no need to shard since I hane only one device
+    '''
 
-    def _shard(data):
-        data["image"] = tf.reshape(
-            data["image"], [num_devices, -1, image_size, image_size, 3]
-        )
-        data["label"] = tf.reshape(data["label"], [num_devices, -1, num_classes])
-        return data
+    # # Shard data such that it can be distributed accross devices
+    # num_devices = 1
 
-    if num_devices is not None:
-        data = data.map(_shard, tf.data.experimental.AUTOTUNE)
+    # def _shard(data):
+    #     data["image"] = tf.reshape(
+    #         data["image"], [num_devices, -1, image_size, image_size, 3]
+    #     )
+    #     data["label"] = tf.reshape(data["label"], [num_devices, -1, num_classes])
+    #     return data
+
+    # if num_devices is not None:
+    #     data = data.map(_shard, tf.data.experimental.AUTOTUNE)
 
     return data.prefetch(1)
 
