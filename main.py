@@ -94,7 +94,7 @@ if __name__ == "__main__":
         loss={"label":tf.keras.losses.CategoricalCrossentropy(from_logits=False)},
         metrics={'label': 'accuracy'})
 
-    # print(model.summary())
+    print(model.summary())
 
     # import pdb
     # pdb.set_trace()

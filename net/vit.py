@@ -4,8 +4,10 @@ import tensorflow_addons as tfa
 import net.resnet as resnet_layer
 
 
-class Add_Position_Embs(tf.keras.layers.Layer):
+class Add_Position_Embs(tf.keras.Model):
   """Adds (optionally learned) positional embeddings to the inputs.
+  ###### warning ######
+  I don't know why but if this function inherit tf.keras.layers.Layer, the self.pe will become none trainable.
 
   Attributes:
     posemb_init: positional embedding initializer.
@@ -17,8 +19,9 @@ class Add_Position_Embs(tf.keras.layers.Layer):
     assert len(input_shape) == 3, "tensor must rank 3"
     pos_emb_shape = (1, input_shape[1], input_shape[2])
     self.pe = tf.Variable(
-            lambda:tf.keras.initializers.RandomNormal(stddev=0.02)(shape = pos_emb_shape[1:]), trainable=True, name="posembed_input"
+            lambda:tf.keras.initializers.RandomNormal(stddev=0.02)(shape = pos_emb_shape), trainable=True, name="posembed_input"
         )
+    
 
   def call(self, inputs):
     """Applies AddPositionEmbs module.
@@ -34,8 +37,8 @@ class Add_Position_Embs(tf.keras.layers.Layer):
       Output tensor with shape `(bs, timesteps, in_dim)`.
     """
 
+    inputs = inputs + self.pe
 
-    inputs = inputs + tf.expand_dims(self.pe,0)
     return inputs
 
 class Mlp_Block(tf.keras.Model):
@@ -171,7 +174,7 @@ class Encoder(tf.keras.Model):
         self.dropout_rate = dropout_rate
         self.attention_dropout_rate = attention_dropout_rate
 
-        # self.add_pe = Add_Position_Embs(self.input_shape)
+
         self.drop1 = tf.keras.layers.Dropout(self.dropout_rate)
 
         self.e_1d_blocks = [Encoder_1D_Block(mlp_dim=self.mlp_dim, 
@@ -179,7 +182,7 @@ class Encoder(tf.keras.Model):
                     attention_dropout_rate=self.attention_dropout_rate,name = f'encoderblock_{lyr}',
                     ) for lyr in range(self.num_layers) ]
         self.ln1 = tf.keras.layers.LayerNormalization(axis = [1,2],epsilon=1e-06,) # axis igonores 0, and we make sure the rank is 3.
-    
+
     def get(self, name, ctor, *args, **kwargs):
         # Create or get layer by name to avoid mentioning it in the constructor.
         if not hasattr(self, "_modules"):
@@ -201,6 +204,8 @@ class Encoder(tf.keras.Model):
         """
         assert len(inputs.shape) == 3  # (batch, len, emb)
 
+
+  
         # x = self.add_pe(inputs)
         x = self.get("add_pe", Add_Position_Embs, inputs.shape)(inputs)
         # x = inputs + self.get("posembed_input",tf.Variable, lambda:tf.keras.initializers.RandomNormal(stddev=0.02)(shape = inputs.shape),trainable=True)
