@@ -242,7 +242,7 @@ def get_data(
         label = tf.one_hot(
             data["label"], num_classes
         )  # pylint: disable=no-value-for-parameter
-        return {"image": im, "label": label}
+        return {"image": im}, {"label": label}
 
     data = data.repeat(repeats)
     if mode == "train":

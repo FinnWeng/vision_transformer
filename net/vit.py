@@ -17,10 +17,10 @@ class Add_Position_Embs(tf.keras.layers.Layer):
     assert len(input_shape) == 3, "tensor must rank 3"
     pos_emb_shape = (1, input_shape[1], input_shape[2])
     self.pe = tf.Variable(
-            tf.keras.initializers.RandomNormal(stddev=0.02)(shape = pos_emb_shape), trainable=True, name="posembed_input"
+            lambda:tf.keras.initializers.RandomNormal(stddev=0.02)(shape = pos_emb_shape[1:]), trainable=True, name="posembed_input"
         )
 
-  def __call__(self, inputs):
+  def call(self, inputs):
     """Applies AddPositionEmbs module.
 
     By default this layer uses a fixed sinusoidal embedding table. If a
@@ -33,7 +33,10 @@ class Add_Position_Embs(tf.keras.layers.Layer):
     Returns:
       Output tensor with shape `(bs, timesteps, in_dim)`.
     """
-    return inputs + self.pe
+
+
+    inputs = inputs + tf.expand_dims(self.pe,0)
+    return inputs
 
 class Mlp_Block(tf.keras.Model):
     """Transformer MLP / feed-forward block."""
@@ -127,7 +130,7 @@ class Encoder_1D_Block(tf.keras.Model):
         """
 
         # Attention block.
-        assert tf.rank(inputs).numpy() == 3, f'Expected (batch, seq, hidden) got {inputs.shape}'
+        assert len(inputs.shape) == 3, f'Expected (batch, seq, hidden) got {inputs.shape}'
         x = self.ln1(inputs)
         if not deterministic:
             x = self.get("attn1",tf.keras.layers.MultiHeadAttention,self.num_heads,x.shape[-1],x.shape[-1], self.attention_dropout_rate,False)(x, x, x)
@@ -196,10 +199,11 @@ class Encoder(tf.keras.Model):
         Returns:
         output of a transformer encoder.
         """
-        assert tf.rank(inputs).numpy() == 3  # (batch, len, emb)
+        assert len(inputs.shape) == 3  # (batch, len, emb)
 
         # x = self.add_pe(inputs)
         x = self.get("add_pe", Add_Position_Embs, inputs.shape)(inputs)
+        # x = inputs + self.get("posembed_input",tf.Variable, lambda:tf.keras.initializers.RandomNormal(stddev=0.02)(shape = inputs.shape),trainable=True)
         x = self.drop1(x, train)
 
         # Input Encoder
@@ -246,7 +250,8 @@ class ViT(tf.keras.Model):
         return self._modules[name]
 
 
-    def call(self, inputs, train):
+    def call(self, inputs, train = True):
+
 
         x = inputs
         # (Possibly partial) ResNet root.
@@ -293,20 +298,25 @@ class ViT(tf.keras.Model):
 
         # Transformer.
         n, h, w, c = x.shape
-        x = tf.reshape(x, [n, h * w, c])
+        x = tf.reshape(x, [-1, h * w, c])
 
         # If we want to add a class token, add it here.
         if self.classifier == 'token':
             cls = self.cls
-            cls = tf.tile(cls,[n, 1, 1])
+            # cls = tf.tile(cls,[1, 1, 1])
+            inter_cls = tf.zeros_like(x[:,0:1,:]) # (b, 1, 32)
+            inter_cls = inter_cls + cls #() (b, 1, 32)
+            cls = inter_cls
+            # print("cls_tile:",cls.shape) # (b, 1, 32)
+            # print("x.shape:", x.shape) # (2, 144, 32)
             x = tf.concat([cls, x], axis=1)
 
-        x = Encoder(name='Transformer', **self.transformer)(x, train=train)
+        x = self.get('Transformer',Encoder, **self.transformer)(x, train=train)
         
         if self.classifier == 'token':
             x = x[:, 0]
         elif self.classifier == 'gap':
-            x = tf.reduce_mean.mean(x, axis=list(range(1, x.ndim - 1)))  # (1,) or (1,2)
+            x = tf.reduce_mean(x, axis=list(range(1, len(x.shape) - 1)))  # (1,) or (1,2)
         else:
             raise ValueError(f'Invalid classifier={self.classifier}')
 
@@ -317,8 +327,14 @@ class ViT(tf.keras.Model):
         # else:
         #     x = IdentityLayer(name='pre_logits')(x)
 
-        x = self.get("head",tf.keras.layers.Dense, 
+        '''
+        the original implementation says using -10 for bias init(says in issue), which scale is too large in my view.
+        '''
+        logit = self.get("head",tf.keras.layers.Dense, 
             self.num_classes, kernel_initializer=tf.keras.initializers.LecunNormal())(x) 
-        # the original implementation says using -10 for bias init(says in issue), which scale is too large in my view.
-        return x
+        return logit
+        # prob = self.get("label",tf.keras.layers.Dense, 
+        #     self.num_classes, kernel_initializer=tf.keras.initializers.LecunNormal(),activation = "softmax")(x) 
+               
+        # return prob
         

@@ -27,10 +27,19 @@ def get_config():
     # Accumulate gradients over multiple steps to save on memory.
     config.accum_steps = 8
 
+    # # Batch size for training.
+    # config.batch = 512
+    # # Batch size for evaluation.
+    # config.batch_eval = 512
+
     # Batch size for training.
-    config.batch = 512
+    config.batch = 2
     # Batch size for evaluation.
-    config.batch_eval = 512
+    config.batch_eval = 1
+
+
+
+
     # Shuffle buffer size.
     config.shuffle_buffer = 50_000
     # Run prediction on validation set every so many steps
