@@ -7,6 +7,7 @@ from os import name
 import ml_collections
 import tensorflow as tf
 import tensorflow_addons as tfa
+import math
 
 from net.vit import ViT
 from dataloader import get_data_from_tfds, get_dataset_info
@@ -74,6 +75,9 @@ if __name__ == "__main__":
     steps_per_epoch = ds_train_num_examples//config.batch
     validation_steps = 3
     log_dir="./tf_log/"
+    total_steps = 100
+    warmup_steps = 5
+    base_lr = 1e-3
 
     # define callback 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -85,11 +89,12 @@ if __name__ == "__main__":
     callback_list = [tensorboard_callback,save_model_callback]
 
 
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate = 1e-2, decay_steps = 1000, decay_rate = 0.01, staircase=False, name=None)
+    # lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(initial_learning_rate = 1e-2, decay_steps = 1000, decay_rate = 0.01, staircase=False, name=None)
+    # lr_schedule = Cosine_Decay_with_Warm_up(base_lr, total_steps, warmup_steps)
 
 
     model.compile(
-        optimizer=tfa.optimizers.NovoGrad(learning_rate = lr_schedule), 
+        optimizer=tf.keras.optimizers.Adam(learning_rate = base_lr), 
         loss={"label":tf.keras.losses.CategoricalCrossentropy(from_logits=False)},
         metrics={'label': 'accuracy'})
 
