@@ -19,6 +19,13 @@ import model_config
 
 if __name__ == "__main__":
 
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+
+
     # initialize dataset
     dataset = "cifar10"
     
@@ -67,14 +74,6 @@ if __name__ == "__main__":
     steps_per_epoch = ds_train_num_examples//config.batch
     validation_steps = 3
     log_dir="./tf_log/"
-
-        
-    gpus = tf.config.experimental.list_physical_devices('GPU')
-    if gpus:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-
 
     # define callback 
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
