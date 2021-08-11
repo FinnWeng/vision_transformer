@@ -27,15 +27,15 @@ def get_config():
     # Accumulate gradients over multiple steps to save on memory.
     config.accum_steps = 8
 
-    # # Batch size for training.
-    # config.batch = 512
-    # # Batch size for evaluation.
-    # config.batch_eval = 512
-
     # Batch size for training.
-    config.batch = 32
+    config.batch = 512
     # Batch size for evaluation.
-    config.batch_eval = 8
+    config.batch_eval = 512
+
+    # # Batch size for training.
+    # config.batch = 32
+    # # Batch size for evaluation.
+    # config.batch_eval = 8
 
 
 

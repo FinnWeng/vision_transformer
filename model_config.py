@@ -5,11 +5,11 @@ def get_b16_config():
     config = ml_collections.ConfigDict()
     config.name = 'ViT-B_16'
     config.patches = ml_collections.ConfigDict({'size': (16, 16)})
-    # config.hidden_size = 768
-    config.hidden_size = 128
+    config.hidden_size = 768
+    # config.hidden_size = 128
     config.transformer = ml_collections.ConfigDict()
-    # config.transformer.mlp_dim = 3072
-    config.transformer.mlp_dim = 128
+    config.transformer.mlp_dim = 3072
+    # config.transformer.mlp_dim = 128
     config.transformer.num_heads = 12
     config.transformer.num_layers = 12
     config.transformer.attention_dropout_rate = 0.0

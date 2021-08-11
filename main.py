@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     # initialize dataset
     dataset = "cifar10"
-    batch_size = 1
+    
     config = training_config.with_dataset(training_config.get_config(), dataset)
     ds_train_info = get_dataset_info(dataset, "train")
     ds_train_num_classes = ds_train_info['num_classes']
