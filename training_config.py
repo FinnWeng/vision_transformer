@@ -33,9 +33,9 @@ def get_config():
     # config.batch_eval = 512
 
     # Batch size for training.
-    config.batch = 2
+    config.batch = 32
     # Batch size for evaluation.
-    config.batch_eval = 1
+    config.batch_eval = 8
 
 
 

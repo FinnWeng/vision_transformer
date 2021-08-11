@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # pdb.set_trace()
 
     hist = model.fit(ds_train,
-                epochs=100, 
+                epochs=200, 
                 steps_per_epoch=steps_per_epoch,
                 validation_data = ds_val,
                 validation_steps=3,callbacks = callback_list).history
