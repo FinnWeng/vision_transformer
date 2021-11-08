@@ -21,6 +21,7 @@ import model_config
 if __name__ == "__main__":
 
     gpus = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.set_visible_devices(gpus[1], 'GPU')
     if gpus:
         # Currently, memory growth needs to be the same across GPUs
         for gpu in gpus:
@@ -64,7 +65,6 @@ if __name__ == "__main__":
     prob = tf.keras.layers.Softmax(axis = -1, name = "label")(logit)
 
     model = tf.keras.Model(inputs = [model_input],outputs = [prob], name = "ViT_model")
-
 
 
     '''

@@ -329,8 +329,27 @@ class ViT(tf.keras.Model):
             x = self.get("pre_logits",tf.keras.layers.Dense, 
                 self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
                 activation = "tanh")(x)
+            
+            x = self.get("pre_logits_1",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                activation = "tanh")(x)
+            
+            x = self.get("pre_logits_2",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                activation = "tanh")(x)
+            
+            x = self.get("pre_logits_3",tf.keras.layers.Dense, 
+                self.representation_size,kernel_initializer=tf.keras.initializers.LecunNormal(),
+                activation = "tanh")(x)
         # else:
         #     x = IdentityLayer(name='pre_logits')(x)
+
+        x = self.get("hidden_transform_1",tf.keras.layers.Dense, 
+            2048,kernel_initializer=tf.keras.initializers.LecunNormal())(x)
+        
+        
+        x = self.get("hidden_transform_2",tf.keras.layers.Dense, 
+            1024,kernel_initializer=tf.keras.initializers.LecunNormal())(x)
 
         '''
         the original implementation says using -10 for bias init(says in issue), which scale is too large in my view.
